@@ -1,0 +1,295 @@
+{
+  "name": "Find jobs",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "triggerAtHour": 8
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.3,
+      "position": [
+        -48,
+        -64
+      ],
+      "id": "682f1b63-ef8e-4578-9e25-8163ee7bab0d",
+      "name": "Schedule Trigger"
+    },
+    {
+      "parameters": {
+        "url": "https://weworkremotely.com/remote-jobs.rss",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.rssFeedRead",
+      "typeVersion": 1.2,
+      "position": [
+        208,
+        0
+      ],
+      "id": "0b9bf8f3-4f1b-4007-8201-1409f6b333a4",
+      "name": "We Work Remotely",
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "url": "https://remotive.com/api/remote-jobs?search=data",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        192,
+        -192
+      ],
+      "id": "b7e53954-4812-463c-8c72-f08853a3637c",
+      "name": "Remotive",
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "const jobs = items[0].json.jobs || [];\n\nreturn jobs.map(job => ({\n  json: {\n    title: job.title,\n    company: job.company_name,\n    location: job.candidate_required_location,\n    category: job.category,\n    job_type: job.job_type,\n    url: job.url,\n    source: \"Remotive\"\n  }\n}));"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        448,
+        -192
+      ],
+      "id": "d0dcdcbe-4ca8-4d96-a4af-8d47b8a63e16",
+      "name": "Code in JavaScript",
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "return items\n  .map(item => ({\n    json: {\n      title: item.json.title || \"\",\n      company: \"\",\n      location: \"Remote\",\n      category: \"Remote\",\n      job_type: \"remote\",\n      url: item.json.link || \"\",\n      source: \"We Work Remotely\"\n    }\n  }))\n  .filter(item => {\n    const text = (item.json.title || \"\").toLowerCase();\n\n    const isRelevant =\n      text.includes(\"data\") ||\n      text.includes(\"analyst\") ||\n      text.includes(\"analytics\") ||\n      text.includes(\"data science\") ||\n      text.includes(\"machine learning\") ||\n      text.includes(\"business intelligence\");\n\n    const isStudentLike =\n      text.includes(\"intern\") ||\n      text.includes(\"student\") ||\n      text.includes(\"junior\") ||\n      text.includes(\"working student\") ||\n      text.includes(\"werkstudent\");\n\n    return isRelevant || isStudentLike;\n  });"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        432,
+        0
+      ],
+      "id": "28a94ac1-9ca2-45e0-a28c-861f746ac343",
+      "name": "Code in JavaScript1",
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3.2,
+      "position": [
+        704,
+        -96
+      ],
+      "id": "48926470-3d40-4d94-abf8-7607a3864881",
+      "name": "Merge",
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "return items.filter(item => {\n  const text = `\n    ${item.json.title || \"\"}\n    ${item.json.category || \"\"}\n    ${item.json.job_type || \"\"}\n    ${item.json.location || \"\"}\n  `.toLowerCase();\n\n  const isData =\n    text.includes(\"data\") ||\n    text.includes(\"analyst\") ||\n    text.includes(\"analytics\") ||\n    text.includes(\"data science\") ||\n    text.includes(\"machine learning\") ||\n    text.includes(\"business intelligence\");\n\n  const isLocationOk =\n    text.includes(\"berlin\") ||\n    text.includes(\"remote\") ||\n    text.includes(\"worldwide\") ||\n    text.includes(\"europe\") ||\n    text.includes(\"germany\");\n\n  return isData && isLocationOk;\n});"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        880,
+        -96
+      ],
+      "id": "01408cd8-6889-455c-ac91-3b366092030d",
+      "name": "Code in JavaScript2",
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "return items.map(item => {\n  const text = `\n    ${item.json.title || \"\"}\n    ${item.json.category || \"\"}\n    ${item.json.job_type || \"\"}\n    ${item.json.location || \"\"}\n  `.toLowerCase();\n\n  let score = 0;\n\n  if (text.includes(\"werkstudent\")) score += 4;\n  if (text.includes(\"working student\")) score += 4;\n  if (text.includes(\"student\")) score += 2;\n  if (text.includes(\"intern\")) score += 2;\n  if (text.includes(\"junior\")) score += 1;\n  if (text.includes(\"part\")) score += 1;\n\n  if (text.includes(\"data analyst\")) score += 4;\n  if (text.includes(\"analytics\")) score += 3;\n  if (text.includes(\"data science\")) score += 3;\n  if (text.includes(\"machine learning\")) score += 2;\n  if (text.includes(\"business intelligence\")) score += 2;\n\n  if (text.includes(\"berlin\")) score += 2;\n  if (text.includes(\"remote\")) score += 2;\n\n  return {\n    json: {\n      ...item.json,\n      score\n    }\n  };\n});"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1088,
+        -192
+      ],
+      "id": "fe6530e7-7b3d-43bd-8cee-c7b09ff08194",
+      "name": "Code in JavaScript3",
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "return items.map(item => {\n  const clean = (value, max = 300) => {\n    if (value === null || value === undefined) return \"\";\n    return String(value).replace(/\\s+/g, \" \").trim().slice(0, max);\n  };\n\n  return {\n    json: {\n      title: clean(item.json.title, 200),\n      company: clean(item.json.company, 150),\n      location: clean(item.json.location, 100),\n      category: clean(item.json.category, 100),\n      job_type: clean(item.json.job_type, 50),\n      url: clean(item.json.url, 500),\n      source: clean(item.json.source, 50),\n      score: item.json.score || 0\n    }\n  };\n});"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1328,
+        -208
+      ],
+      "id": "1280fe7a-81d0-429a-b585-9b0a565ab9e5",
+      "name": "Code in JavaScript4",
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "operation": "xlsx",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.convertToFile",
+      "typeVersion": 1.1,
+      "position": [
+        1056,
+        0
+      ],
+      "id": "033453b6-7d6c-4d0c-98f0-511ffb6fdadc",
+      "name": "Convert to File"
+    },
+    {
+      "parameters": {
+        "jsCode": "const unique = [];\nconst seen = new Set();\n\nfor (const item of items) {\n  if (!seen.has(item.json.link)) {\n    seen.add(item.json.link);\n    unique.push(item);\n  }\n}\n\nreturn unique;"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1344,
+        16
+      ],
+      "id": "9812d5ea-6541-4270-836c-4ffd266d7e01",
+      "name": "Code in JavaScript5",
+      "retryOnFail": false,
+      "onError": "continueRegularOutput"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Schedule Trigger": {
+      "main": [
+        [
+          {
+            "node": "We Work Remotely",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Remotive",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Remotive": {
+      "main": [
+        [
+          {
+            "node": "Code in JavaScript",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "We Work Remotely": {
+      "main": [
+        [
+          {
+            "node": "Code in JavaScript1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code in JavaScript": {
+      "main": [
+        [
+          {
+            "node": "Merge",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code in JavaScript1": {
+      "main": [
+        [
+          {
+            "node": "Merge",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Merge": {
+      "main": [
+        [
+          {
+            "node": "Code in JavaScript2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code in JavaScript2": {
+      "main": [
+        [
+          {
+            "node": "Code in JavaScript3",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code in JavaScript3": {
+      "main": [
+        [
+          {
+            "node": "Code in JavaScript4",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code in JavaScript4": {
+      "main": [
+        [
+          {
+            "node": "Code in JavaScript5",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code in JavaScript5": {
+      "main": [
+        [
+          {
+            "node": "Convert to File",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate",
+    "availableInMCP": false
+  },
+  "versionId": "35008050-662c-4271-9a3b-3594cb72b7d3",
+  "meta": {
+    "instanceId": "2b90d4fb21c443dbf753698d814a7b86d1debccdb83cbe56d58887e51336a65f"
+  },
+  "id": "7DC1gvhzI3OdmVzU",
+  "tags": []
+}
